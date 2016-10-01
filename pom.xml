@@ -19,6 +19,7 @@ Licensed under the terms of the Apache License 2.0. Please see LICENSE file in t
         <kafka.version>0.8.2.1</kafka.version>
         <flink.version>0.10.2</flink.version>
         <storm.version>0.10.0</storm.version>
+        <heron.version>0.14.3</heron.version>
         <scala.binary.version>2.10</scala.binary.version>
         <scala.version>2.10.4</scala.version>
         <json.version>20141113</json.version>
@@ -39,6 +40,18 @@ Licensed under the terms of the Apache License 2.0. Please see LICENSE file in t
                 <groupId>org.apache.storm</groupId>
                 <artifactId>storm-kafka</artifactId>
                 <version>${storm.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.twitter.heron</groupId>
+                <artifactId>heron-api</artifactId>
+                <version>${heron.version}</version>
+                <scope>compile</scope>
+            </dependency>
+            <dependency>
+                <groupId>com.twitter.heron</groupId>
+                <artifactId>heron-storm</artifactId>
+                <version>${heron.version}</version>
+                <scope>compile</scope>
             </dependency>
             <dependency>
                 <groupId>commons-cli</groupId>
@@ -126,6 +139,7 @@ Licensed under the terms of the Apache License 2.0. Please see LICENSE file in t
     <modules>
         <module>streaming-benchmark-common</module>
         <module>storm-benchmarks</module>
+        <module>heron-benchmarks</module>
         <module>flink-benchmarks</module>
         <module>spark-benchmarks</module>
     </modules>

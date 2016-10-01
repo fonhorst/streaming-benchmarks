@@ -16,10 +16,12 @@ REDIS_VERSION=${REDIS_VERSION:-"3.0.5"}
 SCALA_BIN_VERSION=${SCALA_BIN_VERSION:-"2.10"}
 SCALA_SUB_VERSION=${SCALA_SUB_VERSION:-"4"}
 STORM_VERSION=${STORM_VERSION:-"0.10.0"}
+HERON_VERSION=${HERON_VERSION:-"0.14.3"}
 FLINK_VERSION=${FLINK_VERSION:-"0.10.2"}
 SPARK_VERSION=${SPARK_VERSION:-"1.6.2"}
 
 STORM_DIR="apache-storm-$STORM_VERSION"
+HERON_DIR="heron-$HERON_VERSION"
 REDIS_DIR="redis-$REDIS_VERSION"
 KAFKA_DIR="kafka_$SCALA_BIN_VERSION-$KAFKA_VERSION"
 FLINK_DIR="flink-$FLINK_VERSION"
@@ -27,6 +29,7 @@ SPARK_DIR="spark-$SPARK_VERSION-bin-hadoop2.6"
 
 #Get one of the closet apache mirrors
 APACHE_MIRROR=$(curl 'https://www.apache.org/dyn/closer.cgi' |   grep -o '<strong>[^<]*</strong>' |   sed 's/<[^>]*>//g' |   head -1)
+HERON_MIRROR="https://github.com/twitter/heron/releases/download/$HERON_VERSION"
 
 ZK_HOST="localhost"
 ZK_PORT="2181"
@@ -78,8 +81,8 @@ stop_if_needed() {
   fi
 }
 
-fetch_untar_file() {
-  local FILE="download-cache/$1"
+fetch_file(){
+  local FILE=$1
   local URL=$2
   if [[ -e "$FILE" ]];
   then
@@ -99,6 +102,11 @@ fetch_untar_file() {
       exit 1
     fi
   fi
+}
+
+fetch_untar_file() {
+  local FILE="download-cache/$1"
+  fetch_file $1 $2
   tar -xzvf "$FILE"
 }
 
@@ -135,7 +143,7 @@ run() {
 	echo 'storm.ackers: 2' >> $CONF_FILE
 	echo 'spark.batchtime: 2000' >> $CONF_FILE
 	
-    $MVN clean install -Dspark.version="$SPARK_VERSION" -Dkafka.version="$KAFKA_VERSION" -Dflink.version="$FLINK_VERSION" -Dstorm.version="$STORM_VERSION" -Dscala.binary.version="$SCALA_BIN_VERSION" -Dscala.version="$SCALA_BIN_VERSION.$SCALA_SUB_VERSION"
+    $MVN clean install -Dspark.version="$SPARK_VERSION" -Dkafka.version="$KAFKA_VERSION" -Dflink.version="$FLINK_VERSION" -Dstorm.version="$STORM_VERSION" -Dheron.version="$HERON_VERSION" -Dscala.binary.version="$SCALA_BIN_VERSION" -Dscala.version="$SCALA_BIN_VERSION.$SCALA_SUB_VERSION"
 
     #Fetch and build Redis
     REDIS_FILE="$REDIS_DIR.tar.gz"
@@ -152,6 +160,16 @@ run() {
     #Fetch Storm
     STORM_FILE="$STORM_DIR.tar.gz"
     fetch_untar_file "$STORM_FILE" "$APACHE_MIRROR/storm/$STORM_DIR/$STORM_FILE"
+
+    #Fetch HERON
+    HERON_FILE="api"
+    fetch_file "$HERON_FILE" "$HERON_MIRROR/heron-$HERON_FILE-install-$HERON_VERSION-ubuntu.sh"
+    HERON_FILE="client"
+    fetch_file "$HERON_FILE" "$HERON_MIRROR/heron-$HERON_FILE-install-$HERON_VERSION-ubuntu.sh"
+    HERON_FILE="core"
+    fetch_file "$HERON_FILE" "$HERON_MIRROR/heron-$HERON_FILE-install-$HERON_VERSION-ubuntu.sh"
+    HERON_FILE="tool"
+    fetch_file "$HERON_FILE" "$HERON_MIRROR/heron-$HERON_FILE-install-$HERON_VERSION-ubuntu.sh"
 
     #Fetch Flink
     FLINK_FILE="$FLINK_DIR-bin-hadoop27.tgz"
@@ -191,6 +209,15 @@ run() {
     stop_if_needed daemon.name=supervisor "Storm Supervisor"
     stop_if_needed daemon.name=ui "Storm UI"
     stop_if_needed daemon.name=logviewer "Storm LogViewer"
+  elif [ "START_HERON" = "$OPERATION" ];
+    then
+      start_if_needed daemon.name=heron-tracker "Heron Tracker" 3 "$HERON_DIR/bin/heron-tracker" heron-tracker
+      start_if_needed daemon.name=heron-ui "Heron UI" 3 "$HERON_DIR/bin/heron-ui" heron-ui
+      sleep 20
+    elif [ "STOP_HERON" = "$OPERATION" ];
+    then
+      stop_if_needed daemon.name=heron-tracker "Heron Tracker"
+      stop_if_needed daemon.name=heron-ui "Heron UI"
   elif [ "START_KAFKA" = "$OPERATION" ];
   then
     start_if_needed kafka\.Kafka Kafka 10 "$KAFKA_DIR/bin/kafka-server-start.sh" "$KAFKA_DIR/config/server.properties"
@@ -227,12 +254,20 @@ run() {
     cd ..
   elif [ "START_STORM_TOPOLOGY" = "$OPERATION" ];
   then
-    "$STORM_DIR/bin/storm" jar ./storm-benchmarks/target/storm-benchmarks-0.1.0.jar storm.benchmark.AdvertisingTopology test-topo -conf $CONF_FILE
+    "$STORM_DIR/bin/storm" jar ./storm-benchmarks/target/heron-benchmarks-0.1.0.jar storm.benchmark.AdvertisingTopology test-topo -conf $CONF_FILE
     sleep 15
   elif [ "STOP_STORM_TOPOLOGY" = "$OPERATION" ];
   then
     "$STORM_DIR/bin/storm" kill -w 0 test-topo || true
     sleep 10
+  elif [ "START_HERON_TOPOLOGY" = "$OPERATION" ];
+    then
+      "$HERON_DIR/bin/heron" jar ./heron-benchmarks/target/heron-benchmarks-0.1.0.jar storm.benchmark.AdvertisingTopology test-topo -conf $CONF_FILE
+      sleep 15
+    elif [ "STOP_HERON_TOPOLOGY" = "$OPERATION" ];
+    then
+      "$HERON_DIR/bin/storm" kill -w 0 test-topo || true
+      sleep 10
   elif [ "START_SPARK_PROCESSING" = "$OPERATION" ];
   then
     "$SPARK_DIR/bin/spark-submit" --master spark://localhost:7077 --class spark.benchmark.KafkaRedisAdvertisingStream ./spark-benchmarks/target/spark-benchmarks-0.1.0.jar "$CONF_FILE" &
@@ -269,6 +304,21 @@ run() {
     run "STOP_KAFKA"
     run "STOP_REDIS"
     run "STOP_ZK"
+  elif [ "HERON_TEST" = "$OPERATION" ];
+    then
+      run "START_ZK"
+      run "START_REDIS"
+      run "START_KAFKA"
+      run "START_HERON"
+      run "START_HERON_TOPOLOGY"
+      run "START_LOAD"
+      sleep $TEST_TIME
+      run "STOP_LOAD"
+      run "STOP_HERON_TOPOLOGY"
+      run "STOP_HERON"
+      run "STOP_KAFKA"
+      run "STOP_REDIS"
+      run "STOP_ZK"
   elif [ "FLINK_TEST" = "$OPERATION" ];
   then
     run "START_ZK"
@@ -329,6 +379,8 @@ run() {
     echo "STOP_LOAD: kill kafka load generation"
     echo "START_STORM: run storm daemons in the background"
     echo "STOP_STORM: kill the storm daemons"
+    echo "START_HERON: run heron daemons in the background"
+    echo "STOP_HERON: kill the heron daemons"
     echo "START_FLINK: run flink processes"
     echo "STOP_FLINK: kill flink processes"
     echo "START_SPARK: run spark processes"
@@ -336,6 +388,8 @@ run() {
     echo 
     echo "START_STORM_TOPOLOGY: run the storm test topology"
     echo "STOP_STORM_TOPOLOGY: kill the storm test topology"
+    echo "START_HERON_TOPOLOGY: run the heron test topology"
+    echo "STOP_HERON_TOPOLOGY: kill the heron test topology"
     echo "START_FLINK_PROCESSING: run the flink test processing"
     echo "STOP_FLINK_PROCESSSING: kill the flink test processing"
     echo "START_SPARK_PROCESSING: run the spark test processing"
