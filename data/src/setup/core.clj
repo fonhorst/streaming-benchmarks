@@ -9,7 +9,8 @@
             [clojure.java.io :as io]
             [clj-json.core :as json]
             [clojure.tools.cli :as cli]
-            [clj-yaml.core :as yaml])
+            [clj-yaml.core :as yaml]
+            [clojure.java.shell :as shh])
   (:gen-class))
 
 (def num-campaigns 100)
@@ -51,12 +52,12 @@
     (binding [*out* ad-to-campaign-o]
       (let [campaigns-ads (map vector campaigns (partition 10 ads))]
         (redis/with-server {:host redis-host}
-          (redis/flushall)
-          (doseq [[campaign campaign-ads] campaigns-ads]
-            (redis/sadd "campaigns" campaign)
-            (doseq [ad campaign-ads]
-              (println (str "{ \""ad "\": \"" campaign "\"}"))
-              (redis/set ad campaign))))))))
+                           (redis/flushall)
+                           (doseq [[campaign campaign-ads] campaigns-ads]
+                             (redis/sadd "campaigns" campaign)
+                             (doseq [ad campaign-ads]
+                               (println (str "{ \""ad "\": \"" campaign "\"}"))
+                               (redis/set ad campaign))))))))
 
 (defn write-to-kafka [ads kafka-hosts]
   ;; Put some crap in Kafka
@@ -72,30 +73,30 @@
           late-by (- (if nil ;(= 0 (rand-int 1000))
                        (rand-int 50000)
                        0))]
-;          kafka-senders
+      ;          kafka-senders
       (with-open [kafka-o (clojure.java.io/writer "kafka-json.txt")]
         (doseq [v (partition 100000 (map vector
                                          (range kafka-event-count)
                                          (make-ids kafka-event-count)
                                          (make-ids kafka-event-count)))]
           (reduce
-           (fn [acc sender]
-             (if (= (mod acc 10000) 0)
-               (println acc))
-             @sender
-             (+ 1 acc))
-           0
-           (doall
-            (for [[n user_id page_id] v]
-              (let [json-str (str "{\"user_id\": \"" user_id
-                                  "\", \"page_id\": \"" page_id
-                                  "\", \"ad_id\": \"" (rand-nth ads)
-                                  "\", \"ad_type\": \"" (rand-nth ad-types)
-                                  "\", \"event_type\": \"" (rand-nth event-types)
-                                  "\", \"event_time\": \"" (str (+ start-time (* n 10) skew late-by))
-                                  "\", \"ip_address\": \"1.2.3.4\"}")]
-                (.write kafka-o (str json-str "\n"))
-                (send p (record "ad-events" (.getBytes json-str))))))))))))
+            (fn [acc sender]
+              (if (= (mod acc 10000) 0)
+                (println acc))
+              @sender
+              (+ 1 acc))
+            0
+            (doall
+              (for [[n user_id page_id] v]
+                (let [json-str (str "{\"user_id\": \"" user_id
+                                    "\", \"page_id\": \"" page_id
+                                    "\", \"ad_id\": \"" (rand-nth ads)
+                                    "\", \"ad_type\": \"" (rand-nth ad-types)
+                                    "\", \"event_type\": \"" (rand-nth event-types)
+                                    "\", \"event_time\": \"" (str (+ start-time (* n 10) skew late-by))
+                                    "\", \"ip_address\": \"1.2.3.4\"}")]
+                  (.write kafka-o (str json-str "\n"))
+                  (send p (record "ad-events" (.getBytes json-str))))))))))))
 
 ;; Returns a map campaign-id->(timestamp->count)
 (defn dostats []
@@ -103,7 +104,7 @@
   (let [json-string-mapper (map json/parse-string)
         ad->campaign (with-open [ad-campaign (io/reader "ad-to-campaign-ids.txt")]
                        (doall
-                        (reduce merge (map json/parse-string (line-seq ad-campaign)))))
+                         (reduce merge (map json/parse-string (line-seq ad-campaign)))))
         campaign-buckets-mapper (map (fn camp-buck-map [event]
                                        (let [event-time (Long. (get event "event_time"))
                                              time-bucket (long (/ event-time time-divisor))
@@ -121,8 +122,8 @@
                           next-timebucket-val (+ current-timebucket-val 1)]
                       (if (= type "view")
                         (assoc acc campaign-id
-                               (assoc current-campaign-map time-bucket
-                                      next-timebucket-val))
+                                   (assoc current-campaign-map time-bucket
+                                                               next-timebucket-val))
                         acc))))
                  {}
                  (line-seq kafkas)))))
@@ -134,31 +135,36 @@
               (.write seen-file (str seen "\n"))
               (.write updated-file (str updated "\n")))]
       (redis/with-server {:host redis-host}
-        (doall
-         (map data-printer
-              (apply concat
-                     (let [campaigns (redis/smembers "campaigns")]
-                       (for [campaign campaigns]
-                         (let [windows-key (redis/hget campaign "windows")
-                               window-count (redis/llen windows-key)
-                               windows (redis/lrange windows-key 0 window-count)]
-                           (for [window-time windows]
-                             (let [window-key (redis/hget campaign window-time)
-                                   seen (redis/hget window-key "seen_count")
-                                   time_updated (redis/hget window-key "time_updated")]
-                               [seen (- (Long/parseLong time_updated) (Long/parseLong window-time))]))))))))))))
+                         (doall
+                           (map data-printer
+                                (apply concat
+                                       (let [campaigns (redis/smembers "campaigns")]
+                                         (for [campaign campaigns]
+                                           (let [windows-key (redis/hget campaign "windows")
+                                                 window-count (redis/llen windows-key)
+                                                 windows (redis/lrange windows-key 0 window-count)]
+                                             (for [window-time windows]
+                                               (let [window-key (redis/hget campaign window-time)
+                                                     seen (redis/hget window-key "seen_count")
+                                                     time_updated (redis/hget window-key "time_updated")]
+                                                 [seen (- (Long/parseLong time_updated) (Long/parseLong window-time))]))))))))))))
+
+(defn make-stats [redis-host]
+  (println "Running python script make-stats.py.example")
+  (shh/sh "python" "make-stats.py.example" redis-host)
+  (shutdown-agents))
 
 (defn gen-ads [redis-host]
   (redis/with-server {:host redis-host}
-    (let [campaigns (redis/smembers "campaigns")
-          ads (into [] (make-ids (* num-campaigns 10)))
-          campaigns-ads (map vector campaigns (partition 10 ads))]
-      (if (< (count campaigns) num-campaigns)
-        (throw (RuntimeException. "No Campaigns found. Please run with -n first.")))
-      (doseq [[campaign campaign-ads] campaigns-ads]
-        (doseq [ad campaign-ads]
-          (redis/set ad campaign)))
-      ads)))
+                     (let [campaigns (redis/smembers "campaigns")
+                           ads (into [] (make-ids (* num-campaigns 10)))
+                           campaigns-ads (map vector campaigns (partition 10 ads))]
+                       (if (< (count campaigns) num-campaigns)
+                         (throw (RuntimeException. "No Campaigns found. Please run with -n first.")))
+                       (doseq [[campaign campaign-ads] campaigns-ads]
+                         (doseq [ad campaign-ads]
+                           (redis/set ad campaign)))
+                       ads)))
 
 (defn make-kafka-event-at [time with-skew? ads user-ids page-ids]
   (let [ad-types ["banner", "modal", "sponsored-search", "mail", "mobile"]
@@ -207,33 +213,33 @@
   (println "Writing campaigns data to Redis.")
   (let [campaigns (make-ids num-campaigns)]
     (redis/with-server {:host redis-host}
-      (redis/flushall)
-      (doseq [campaign campaigns]
-        (redis/sadd "campaigns" campaign)))))
+                       (redis/flushall)
+                       (doseq [campaign campaigns]
+                         (redis/sadd "campaigns" campaign)))))
 
 (defn check-correct [redis-host]
   (let [stats (doall (dostats))]
     (println "Got stats!")
     (println "Checking Redis!")
     (redis/with-server {:host redis-host}
-      (doseq [[campaign c-stats] stats]
-        (doseq [[timestamp val] c-stats]
-          (let [timestamp-key (redis/hget campaign (str (* timestamp time-divisor)))]
-            (if timestamp-key
-              (let [seen-count (Long. (redis/hget timestamp-key "seen_count"))]
-                (if (not= seen-count val)  ;when
-                  (println (str
-                            "Campaign: " (pr-str campaign)
-                            " has an entry for Timestamp: " (pr-str timestamp)
-                            " DIFFER in seen count: (" (pr-str seen-count) ", " (pr-str val) ")"))
-                  (println (str
-                             "Campaign: " (pr-str campaign)
-                             " has an entry for Timestamp: " (pr-str timestamp)
-                             " CORRECT in seen count: (" (pr-str seen-count) ", " (pr-str val) ")"))
-                  ))
-              (println (str
-                        "Campaign: " (pr-str campaign)
-                        " has no entry for Timestamp: " (str timestamp ) " , was expecting " (pr-str val))))))))))
+                       (doseq [[campaign c-stats] stats]
+                         (doseq [[timestamp val] c-stats]
+                           (let [timestamp-key (redis/hget campaign (str (* timestamp time-divisor)))]
+                             (if timestamp-key
+                               (let [seen-count (Long. (redis/hget timestamp-key "seen_count"))]
+                                 (if (not= seen-count val)  ;when
+                                   (println (str
+                                              "Campaign: " (pr-str campaign)
+                                              " has an entry for Timestamp: " (pr-str timestamp)
+                                              " DIFFER in seen count: (" (pr-str seen-count) ", " (pr-str val) ")"))
+                                   (println (str
+                                              "Campaign: " (pr-str campaign)
+                                              " has an entry for Timestamp: " (pr-str timestamp)
+                                              " CORRECT in seen count: (" (pr-str seen-count) ", " (pr-str val) ")"))
+                                   ))
+                               (println (str
+                                          "Campaign: " (pr-str campaign)
+                                          " has no entry for Timestamp: " (str timestamp ) " , was expecting " (pr-str val))))))))))
 
 (defn do-setup [conf]
   (let [{campaigns :campaigns ads :ads} (load-ids)]
@@ -281,5 +287,5 @@
       (:check options)                        (check-correct redis-host)
       (:new options)                          (do-new-setup redis-host)
       (:run options)                          (run (:throughput options) (:with-skew options) kafka-hosts redis-host)
-      (:get-stats options)                    (get-stats redis-host)
+      (:get-stats options)                    (make-stats redis-host)
       :else                                   (println summary))))
