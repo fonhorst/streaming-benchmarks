@@ -237,7 +237,7 @@ public class AdvertisingTopology {
         if (args != null && args.length > 0) {
             conf.setNumWorkers(workers);
             conf.setNumAckers(ackers);
-            StormSubmitter.submitTopologyWithProgressBar(args[0], conf, builder.createTopology());
+            StormSubmitter.submitTopology(args[0], conf, builder.createTopology());
         }
         else {
 

@@ -386,33 +386,24 @@ run() {
     echo "START_SPARK: run spark processes"
     echo "STOP_SPARK: kill spark processes"
     echo 
-    echo "START_STORM_TOPOLOGY: run the storm test topology"
-    echo "STOP_STORM_TOPOLOGY: kill the storm test topology"
-    echo "START_HERON_TOPOLOGY: run the heron test topology"
-    echo "STOP_HERON_TOPOLOGY: kill the heron test topology"
-    echo "START_FLINK_PROCESSING: run the flink test processing"
-    echo "STOP_FLINK_PROCESSSING: kill the flink test processing"
-    echo "START_SPARK_PROCESSING: run the spark test processing"
-    echo "STOP_SPARK_PROCESSSING: kill the spark test processing"
-    echo
-    echo "STORM_TEST: run storm test (assumes SETUP is done)"
-    echo "FLINK_TEST: run flink test (assumes SETUP is done)"
-    echo "SPARK_TEST: run spark test (assumes SETUP is done)"
-    echo "STOP_ALL: stop everything"
-    echo
-    echo "HELP: print out this message"
-    echo
-    exit 1
-  fi
-}
-
-if [ $# -lt 1 ];
-then
-  run "HELP"
-else
-  while [ $# -gt 0 ];
-  do
-    run "$1"
-    shift
-  done
+    echo "STORM_TEST: run storm test (assumes SETUP is done)" 
+    echo "FLINK_TEST: run flink test (assumes SETUP is done)" 
+    echo "SPARK_TEST: run spark test (assumes SETUP is done)" 
+    echo "STOP_ALL: stop everything" 
+    echo 
+    echo "HELP: print out this message" 
+    echo 
+    exit 1 
+  fi 
+} 
+ 
+if [ $# -lt 1 ]; 
+then 
+  run "HELP" 
+else 
+  while [ $# -gt 0 ]; 
+  do 
+    run "$1" 
+    shift 
+  done 
 fi
