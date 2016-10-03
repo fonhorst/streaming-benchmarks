@@ -357,8 +357,11 @@ run() {
     run "STOP_SPARK_PROCESSING"
     run "STOP_SPARK"
     run "STOP_KAFKA"
-    run "STOP_REDIS"
+#    run "STOP_REDIS"
     run "STOP_ZK"
+    ~/anaconda3/bin/python latency_exporter.py spark $LOAD
+    ~/anaconda3/bin/python throughput_exporter.py spark $LOAD
+
   elif [ "STOP_ALL" = "$OPERATION" ];
   then
     run "STOP_LOAD"
