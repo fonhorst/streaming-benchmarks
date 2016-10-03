@@ -106,7 +106,7 @@ fetch_file(){
 
 fetch_untar_file() {
   local FILE="download-cache/$1"
-  fetch_file $1 $2
+  fetch_file $FILE $2
   tar -xzvf "$FILE"
 }
 
