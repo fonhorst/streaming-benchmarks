@@ -1,0 +1,9 @@
+import sys
+import time
+
+redis_host = sys.argv[1]
+with open("/home/vagrant/1.txt", "a") as f:
+	f.writelines([redis_host])
+
+time.sleep(5)
+sys.exit(0)
