@@ -67,7 +67,8 @@
                           (byte-array-serializer))]
     (println "Creating kafka senders.")
     (let [ad-types ["banner", "modal", "sponsored-search", "mail", "mobile"]
-          event-types ["view", "click", "purchase"]
+          ;;event-types ["view", "click", "purchase"]
+          event-types ["view"]
           start-time (System/currentTimeMillis)
           skew 0 ;(- (rand-int 1000))
           late-by (- (if nil ;(= 0 (rand-int 1000))
@@ -168,7 +169,8 @@
 
 (defn make-kafka-event-at [time with-skew? ads user-ids page-ids]
   (let [ad-types ["banner", "modal", "sponsored-search", "mail", "mobile"]
-        event-types ["view", "click", "purchase"]
+        ;;event-types ["view", "click", "purchase"]
+        event-types ["view"]
         skew (if with-skew?
                (- 50 (rand-int 100))
                0)
