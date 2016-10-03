@@ -21,13 +21,11 @@ FLINK_VERSION=${FLINK_VERSION:-"0.10.2"}
 SPARK_VERSION=${SPARK_VERSION:-"1.6.2"}
 
 STORM_DIR="apache-storm-$STORM_VERSION"
-HERON_DIR="../.heron" 
+HERON_DIR="heron-$HERON_VERSION" 
 REDIS_DIR="redis-$REDIS_VERSION"
 KAFKA_DIR="kafka_$SCALA_BIN_VERSION-$KAFKA_VERSION"
 FLINK_DIR="flink-$FLINK_VERSION"
 SPARK_DIR="spark-$SPARK_VERSION-bin-hadoop2.6"
-
-HERON_FILES="client tools"
 
 #Get one of the closet apache mirrors
 APACHE_MIRROR=$(curl 'https://www.apache.org/dyn/closer.cgi' |   grep -o '<strong>[^<]*</strong>' |   sed 's/<[^>]*>//g' |   head -1)
@@ -84,7 +82,7 @@ stop_if_needed() {
 }
 
 fetch_file(){
-  local FILE=$1
+  local FILE="download-cache/$1"
   local URL=$2
   if [[ -e "$FILE" ]];
   then
@@ -96,20 +94,22 @@ fetch_file(){
     if [ -n "$WGET" ];
     then
       wget -O "$FILE" "$URL"
+	  chmod +x $FILE
     elif [ -n "$CURL" ];
     then
       curl -o "$FILE" "$URL"
+	  chmod +x $FILE
     else
       echo "Please install curl or wget to continue.";
       exit 1
     fi
   fi
-  chmod +x $FILE
+  
 }
 
 fetch_untar_file() {
+  fetch_file $1 $2
   local FILE="download-cache/$1"
-  fetch_file $FILE $2
   tar -xzvf "$FILE"
 }
 
@@ -166,6 +166,7 @@ run() {
 
     #Fetch HERON 
 	#apt-get install zip libunwind-setjmp0-dev zlib1g-dev unzip -y --force-yes
+	HERON_FILES="client tools"
 	for FILE in $HERON_FILES
 	do
 		HERON_FILE="heron-$FILE-install-$HERON_VERSION-ubuntu.sh" 
@@ -175,7 +176,7 @@ run() {
 	for FILE in $HERON_FILES
 	do
 		HERON_FILE="heron-$FILE-install-$HERON_VERSION-ubuntu.sh" 
-		./download-cache/$HERON_FILE --user 
+		./download-cache/$HERON_FILE --prefix=$HERON_DIR 
 	done
 
     #Fetch Flink
@@ -219,8 +220,8 @@ run() {
   elif [ "START_HERON" = "$OPERATION" ]; 
   then 
       echo "Starting heron $OPERATION"
-	  start_if_needed heron-tracker "Heron Tracker" 3 $HERON_DIR"tools/bin/heron-tracker"
-      start_if_needed heron-ui "Heron UI" 3 $HERON_DIR"tools/bin/heron-ui"
+	  start_if_needed heron-tracker "Heron Tracker" 3 $HERON_DIR"/bin/heron-tracker"
+      start_if_needed heron-ui "Heron UI" 3 $HERON_DIR"/bin/heron-ui"
       sleep 5 
   elif [ "STOP_HERON" = "$OPERATION" ]; 
     then 
