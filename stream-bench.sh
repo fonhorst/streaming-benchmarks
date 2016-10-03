@@ -21,11 +21,13 @@ FLINK_VERSION=${FLINK_VERSION:-"0.10.2"}
 SPARK_VERSION=${SPARK_VERSION:-"1.6.2"}
 
 STORM_DIR="apache-storm-$STORM_VERSION"
-HERON_DIR="heron-$HERON_VERSION"
+HERON_DIR="../.heron" 
 REDIS_DIR="redis-$REDIS_VERSION"
 KAFKA_DIR="kafka_$SCALA_BIN_VERSION-$KAFKA_VERSION"
 FLINK_DIR="flink-$FLINK_VERSION"
 SPARK_DIR="spark-$SPARK_VERSION-bin-hadoop2.6"
+
+HERON_FILES="client-install tools"
 
 #Get one of the closet apache mirrors
 APACHE_MIRROR=$(curl 'https://www.apache.org/dyn/closer.cgi' |   grep -o '<strong>[^<]*</strong>' |   sed 's/<[^>]*>//g' |   head -1)
@@ -102,6 +104,7 @@ fetch_file(){
       exit 1
     fi
   fi
+  chmod +x $FILE
 }
 
 fetch_untar_file() {
@@ -161,15 +164,19 @@ run() {
     STORM_FILE="$STORM_DIR.tar.gz"
     fetch_untar_file "$STORM_FILE" "$APACHE_MIRROR/storm/$STORM_DIR/$STORM_FILE"
 
-    #Fetch HERON
-    HERON_FILE="api"
-    fetch_file "$HERON_FILE" "$HERON_MIRROR/heron-$HERON_FILE-install-$HERON_VERSION-ubuntu.sh"
-    HERON_FILE="client"
-    fetch_file "$HERON_FILE" "$HERON_MIRROR/heron-$HERON_FILE-install-$HERON_VERSION-ubuntu.sh"
-    HERON_FILE="core"
-    fetch_file "$HERON_FILE" "$HERON_MIRROR/heron-$HERON_FILE-install-$HERON_VERSION-ubuntu.sh"
-    HERON_FILE="tool"
-    fetch_file "$HERON_FILE" "$HERON_MIRROR/heron-$HERON_FILE-install-$HERON_VERSION-ubuntu.sh"
+    #Fetch HERON 
+	#apt-get install zip libunwind-setjmp0-dev zlib1g-dev unzip -y --force-yes
+	for FILE in $HERON_FILES
+	do
+		HERON_FILE="heron-$FILE-install-$HERON_VERSION-ubuntu.sh" 
+		fetch_file "$HERON_FILE" "$HERON_MIRROR/$HERON_FILE"  
+	done
+	
+	for FILE in $HERON_FILES
+	do
+		HERON_FILE="heron-$FILE-install-$HERON_VERSION-ubuntu.sh" 
+		./download-cache/$HERON_FILE --user 
+	done
 
     #Fetch Flink
     FLINK_FILE="$FLINK_DIR-bin-hadoop27.tgz"
@@ -209,15 +216,17 @@ run() {
     stop_if_needed daemon.name=supervisor "Storm Supervisor"
     stop_if_needed daemon.name=ui "Storm UI"
     stop_if_needed daemon.name=logviewer "Storm LogViewer"
-  elif [ "START_HERON" = "$OPERATION" ];
-    then
-      start_if_needed daemon.name=heron-tracker "Heron Tracker" 3 "$HERON_DIR/bin/heron-tracker" heron-tracker
-      start_if_needed daemon.name=heron-ui "Heron UI" 3 "$HERON_DIR/bin/heron-ui" heron-ui
-      sleep 20
-    elif [ "STOP_HERON" = "$OPERATION" ];
-    then
-      stop_if_needed daemon.name=heron-tracker "Heron Tracker"
-      stop_if_needed daemon.name=heron-ui "Heron UI"
+  elif [ "START_HERON" = "$OPERATION" ]; 
+  then 
+      echo "Starting heron $OPERATION"
+	  start_if_needed heron-tracker "Heron Tracker" 3 $HERON_DIR"tools/bin/heron-tracker"
+      start_if_needed heron-ui "Heron UI" 3 $HERON_DIR"tools/bin/heron-ui"
+      sleep 5 
+  elif [ "STOP_HERON" = "$OPERATION" ]; 
+    then 
+	  echo "Stopping heron $OPERATION"
+      stop_if_needed heron-tracker "heron-tracker" 
+      stop_if_needed heron-ui "heron-ui"
   elif [ "START_KAFKA" = "$OPERATION" ];
   then
     start_if_needed kafka\.Kafka Kafka 10 "$KAFKA_DIR/bin/kafka-server-start.sh" "$KAFKA_DIR/config/server.properties"
@@ -260,14 +269,15 @@ run() {
   then
     "$STORM_DIR/bin/storm" kill -w 0 test-topo || true
     sleep 10
-  elif [ "START_HERON_TOPOLOGY" = "$OPERATION" ];
-    then
-      "$HERON_DIR/bin/heron" jar ./heron-benchmarks/target/heron-benchmarks-0.1.0.jar storm.benchmark.AdvertisingTopology test-topo -conf $CONF_FILE
-      sleep 15
-    elif [ "STOP_HERON_TOPOLOGY" = "$OPERATION" ];
-    then
-      "$HERON_DIR/bin/storm" kill -w 0 test-topo || true
-      sleep 10
+   elif [ "START_HERON_TOPOLOGY" = "$OPERATION" ]; 
+    then 
+	  echo local/vagrant/devel --config-path $HERON_DIR/conf/ ./heron-benchmarks/target/heron-benchmarks-0.1.0.jar storm.benchmark.AdvertisingTopology test-topo -conf $CONF_FILE 
+	  "$HERON_DIR/bin/heron" submit local/vagrant/devel --config-path $HERON_DIR/conf/ ./heron-benchmarks/target/heron-benchmarks-0.1.0.jar storm.benchmark.AdvertisingTopology test-topo -conf $CONF_FILE 
+      sleep 15 
+  elif [ "STOP_HERON_TOPOLOGY" = "$OPERATION" ]; 
+    then 
+      "$HERON_DIR/bin/heron" kill local/vagrant/devel test-topo || true 
+      sleep 10 
   elif [ "START_SPARK_PROCESSING" = "$OPERATION" ];
   then
     "$SPARK_DIR/bin/spark-submit" --master spark://localhost:7077 --class spark.benchmark.KafkaRedisAdvertisingStream ./spark-benchmarks/target/spark-benchmarks-0.1.0.jar "$CONF_FILE" &
