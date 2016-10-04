@@ -35,7 +35,7 @@ ZK_HOST="localhost"
 ZK_PORT="2181"
 ZK_CONNECTIONS="$ZK_HOST:$ZK_PORT"
 TOPIC=${TOPIC:-"ad-events"}
-PARTITIONS=${PARTITIONS:-1}
+PARTITIONS=${PARTITIONS:-2}
 LOAD=${LOAD:-1}
 CONF_FILE=./conf/localConf.yaml
 TEST_TIME=${TEST_TIME:-240}
@@ -264,7 +264,7 @@ run() {
     cd ..
   elif [ "START_STORM_TOPOLOGY" = "$OPERATION" ];
   then
-    "$STORM_DIR/bin/storm" jar ./storm-benchmarks/target/heron-benchmarks-0.1.0.jar storm.benchmark.AdvertisingTopology test-topo -conf $CONF_FILE
+    "$STORM_DIR/bin/storm" jar ./storm-benchmarks/target/storm-benchmarks-0.1.0.jar storm.benchmark.AdvertisingTopology test-topo -conf $CONF_FILE
     sleep 15
   elif [ "STOP_STORM_TOPOLOGY" = "$OPERATION" ];
   then
@@ -358,10 +358,10 @@ run() {
     run "STOP_SPARK_PROCESSING"
     run "STOP_SPARK"
     run "STOP_KAFKA"
-    #    run "STOP_REDIS"
+    run "STOP_REDIS"
     run "STOP_ZK"
-    ~/anaconda3/bin/python latency_exporter.py spark $LOAD
-    ~/anaconda3/bin/python throughput_exporter.py spark $LOAD
+#    ~/anaconda3/bin/python latency_exporter.py spark $LOAD
+#    ~/anaconda3/bin/python throughput_exporter.py spark $LOAD
   elif [ "STOP_ALL" = "$OPERATION" ];
   then
     run "STOP_LOAD"
