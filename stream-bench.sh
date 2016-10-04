@@ -262,6 +262,7 @@ run() {
     cd data
     $LEIN run -g --configPath ../$CONF_FILE || true
     cd ..
+    ~/anaconda3/bin/python latency_exporter.py spark $LOAD
   elif [ "START_STORM_TOPOLOGY" = "$OPERATION" ];
   then
     "$STORM_DIR/bin/storm" jar ./storm-benchmarks/target/storm-benchmarks-0.1.0.jar storm.benchmark.AdvertisingTopology test-topo -conf $CONF_FILE
@@ -343,7 +344,7 @@ run() {
     run "STOP_FLINK_PROCESSING"
     run "STOP_FLINK"
     run "STOP_KAFKA"
-    run "STOP_REDIS"
+#    run "STOP_REDIS"
     run "STOP_ZK"
   elif [ "SPARK_TEST" = "$OPERATION" ];
   then
@@ -360,8 +361,7 @@ run() {
     run "STOP_KAFKA"
     run "STOP_REDIS"
     run "STOP_ZK"
-#    ~/anaconda3/bin/python latency_exporter.py spark $LOAD
-#    ~/anaconda3/bin/python throughput_exporter.py spark $LOAD
+
   elif [ "STOP_ALL" = "$OPERATION" ];
   then
     run "STOP_LOAD"

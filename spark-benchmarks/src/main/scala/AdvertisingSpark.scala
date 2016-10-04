@@ -201,7 +201,16 @@ object KafkaRedisAdvertisingStream {
         dressUp.lpush(windowListUUID, window_timestamp)
       }
       dressUp.hincrBy(windowUUID, "seen_count", window_seenCount)
-      dressUp.hset(windowUUID, "time_updated", currentTime.toString)
+
+      val time = currentTime.toString
+      dressUp.hset(windowUUID, "time_updated", time)
+
+
+      /* Added  */
+      dressUp.lpush("events", campaign)
+      dressUp.hset(campaign, "event_finish_time", time)
+      dressUp.hset(campaign, "event_time", window_timestamp)
+      dressUp.hset(campaign, "latency", (time.toLong - window_timestamp.toLong).toString)
       return window_seenCount.toString
     }
 
