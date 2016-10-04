@@ -220,8 +220,8 @@ run() {
   elif [ "START_HERON" = "$OPERATION" ]; 
   then 
       echo "Starting heron $OPERATION"
-	  start_if_needed heron-tracker "Heron Tracker" 3 $HERON_DIR"/bin/heron-tracker"
-      start_if_needed heron-ui "Heron UI" 3 $HERON_DIR"/bin/heron-ui"
+	  start_if_needed heron-tracker "Heron Tracker" 3 $HERON_DIR"/herontools/bin/heron-tracker"
+      start_if_needed heron-ui "Heron UI" 3 $HERON_DIR"/herontools/bin/heron-ui"
       sleep 5 
   elif [ "STOP_HERON" = "$OPERATION" ]; 
     then 
@@ -272,12 +272,11 @@ run() {
     sleep 10
    elif [ "START_HERON_TOPOLOGY" = "$OPERATION" ]; 
     then 
-	  echo local/vagrant/devel --config-path $HERON_DIR/conf/ ./heron-benchmarks/target/heron-benchmarks-0.1.0.jar storm.benchmark.AdvertisingTopology test-topo -conf $CONF_FILE 
-	  "$HERON_DIR/bin/heron" submit local/vagrant/devel --config-path $HERON_DIR/conf/ ./heron-benchmarks/target/heron-benchmarks-0.1.0.jar storm.benchmark.AdvertisingTopology test-topo -conf $CONF_FILE 
+	  "$HERON_DIR/heron/bin/heron" submit local/vagrant/devel --config-path $HERON_DIR/heron/conf/ ./heron-benchmarks/target/heron-benchmarks-0.1.0.jar storm.benchmark.AdvertisingTopology test-topo -conf $CONF_FILE 
       sleep 15 
   elif [ "STOP_HERON_TOPOLOGY" = "$OPERATION" ]; 
     then 
-      "$HERON_DIR/bin/heron" kill local/vagrant/devel test-topo || true 
+      "$HERON_DIR/heron/bin/heron" kill local/vagrant/devel test-topo || true 
       sleep 10 
   elif [ "START_SPARK_PROCESSING" = "$OPERATION" ];
   then
