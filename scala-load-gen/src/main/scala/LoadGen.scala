@@ -30,8 +30,8 @@ object LoadGen {
 
 
   def main(args:Array[String]) = {
-//    doNewSetup(redisHost)
-    run(throughput = 5000)
+    doNewSetup(redisHost)
+    run(throughput = 50000)
   }
 
   def doNewSetup(redisHost: String) = {
@@ -54,7 +54,7 @@ object LoadGen {
     val pageIds = makeIds(100)
     val userIds = makeIds(100)
     val startTimeNS = System.currentTimeMillis() * 1000000
-    val periodNS = throughput / 1000000000
+    val periodNS = 1000000000 / throughput
     val timesIter = Stream.from(0).map(x => periodNS * x + startTimeNS)
 
     val props = Map[String, Object]("bootstrap.servers" -> kafkaHosts)
@@ -105,11 +105,11 @@ object LoadGen {
     }
 
     val campaignsPipe = redis.pipelined()
-    campaignsPipe.multi()
+    //campaignsPipe.multi()
     for((campaign, ads) <- campaignsAds){
       ads.foreach(campaignsPipe.set(_, campaign))
     }
-    campaignsPipe.exec()
+    campaignsPipe.sync()
 
     ads
   }
