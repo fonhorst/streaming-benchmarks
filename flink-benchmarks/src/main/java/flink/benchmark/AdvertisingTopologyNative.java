@@ -25,6 +25,8 @@ import org.slf4j.LoggerFactory;
 
 import java.util.*;
 
+import static java.lang.Math.min;
+
 /**
  * To Run:  flink run target/flink-benchmarks-0.1.0-AdvertisingTopologyNative.jar  --confPath "../conf/benchmarkConf.yaml"
  */
@@ -38,6 +40,7 @@ public class AdvertisingTopologyNative {
         ParameterTool parameterTool = ParameterTool.fromArgs(args);
 
         Map conf = Utils.findAndReadConfigFile(parameterTool.getRequired("confPath"), true);
+
         int kafkaPartitions = ((Number)conf.get("kafka.partitions")).intValue();
         int hosts = ((Number)conf.get("process.hosts")).intValue();
         int cores = ((Number)conf.get("process.cores")).intValue();
@@ -47,25 +50,32 @@ public class AdvertisingTopologyNative {
         LOG.info("conf: {}", conf);
         LOG.info("Parameters used: {}", flinkBenchmarkParams.toMap());
 
-        StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
-        env.getConfig().setGlobalJobParameters(flinkBenchmarkParams);
+        StreamExecutionEnvironment environment = StreamExecutionEnvironment.getExecutionEnvironment();
+
+        environment
+                .getConfig()
+                .setGlobalJobParameters(flinkBenchmarkParams);
 
 		// Set the buffer timeout (default 100)
         // Lowering the timeout will lead to lower latencies, but will eventually reduce throughput.
-        env.setBufferTimeout(flinkBenchmarkParams.getLong("flink.buffer-timeout", 100));
+        environment
+                .setBufferTimeout(flinkBenchmarkParams.getLong("flink.buffer-timeout", 100));
 
         if(flinkBenchmarkParams.has("flink.checkpoint-interval")) {
             // enable checkpointing for fault tolerance
-            env.enableCheckpointing(flinkBenchmarkParams.getLong("flink.checkpoint-interval", 1000));
+            environment
+                    .enableCheckpointing(flinkBenchmarkParams.getLong("flink.checkpoint-interval", 1000));
         }
         // set default parallelism for all operators (recommended value: number of available worker CPU cores in the cluster (hosts * cores))
-        env.setParallelism(hosts * cores);
+        environment.setParallelism(hosts * cores);
 
-        DataStream<String> messageStream = env
-                .addSource(new FlinkKafkaConsumer082<String>(
-                        flinkBenchmarkParams.getRequired("topic"),
-                        new SimpleStringSchema(),
-                        flinkBenchmarkParams.getProperties())).setParallelism(Math.min(hosts * cores, kafkaPartitions));
+        SimpleStringSchema simpleStringSchema = new SimpleStringSchema();
+
+        FlinkKafkaConsumer082<String> topic = new FlinkKafkaConsumer082<String>(flinkBenchmarkParams.getRequired("topic"), simpleStringSchema, flinkBenchmarkParams.getProperties());
+
+        DataStream<String> messageStream = environment
+                .addSource(topic)
+                .setParallelism(min(hosts * cores, kafkaPartitions));
 
         messageStream
                 .rebalance()
@@ -86,18 +96,18 @@ public class AdvertisingTopologyNative {
                 .flatMap(new CampaignProcessor());
 
 
-        env.execute();
+        environment.execute();
     }
 
     public static class DeserializeBolt implements
             FlatMapFunction<String, Tuple7<String, String, String, String, String, String, String>> {
 
         @Override
-        public void flatMap(String input, Collector<Tuple7<String, String, String, String, String, String, String>> out)
-                throws Exception {
+        public void flatMap(String input, Collector<Tuple7<String, String, String, String, String, String, String>> collector) throws Exception {
+
             JSONObject obj = new JSONObject(input);
-            Tuple7<String, String, String, String, String, String, String> tuple =
-                    new Tuple7<String, String, String, String, String, String, String>(
+
+            Tuple7<String, String, String, String, String, String, String> tuple = new Tuple7<String, String, String, String, String, String, String>(
                             obj.getString("user_id"),
                             obj.getString("page_id"),
                             obj.getString("ad_id"),
@@ -105,15 +115,18 @@ public class AdvertisingTopologyNative {
                             obj.getString("event_type"),
                             obj.getString("event_time"),
                             obj.getString("ip_address"));
-            out.collect(tuple);
+
+            collector.collect(tuple);
         }
     }
 
-    public static class EventFilterBolt implements
-            FilterFunction<Tuple7<String, String, String, String, String, String, String>> {
+    public static class EventFilterBolt implements FilterFunction<Tuple7<String, String, String, String, String, String, String>> {
+
         @Override
         public boolean filter(Tuple7<String, String, String, String, String, String, String> tuple) throws Exception {
-            return tuple.getField(4).equals("view");
+            return tuple
+                    .getField(4)
+                    .equals("view");
         }
     }
 
@@ -123,19 +136,27 @@ public class AdvertisingTopologyNative {
 
         @Override
         public void open(Configuration parameters) {
+
             //initialize jedis
+
             ParameterTool parameterTool = (ParameterTool) getRuntimeContext().getExecutionConfig().getGlobalJobParameters();
+
             parameterTool.getRequired("jedis_server");
+
             LOG.info("Opening connection with Jedis to {}", parameterTool.getRequired("jedis_server"));
+
             this.redisAdCampaignCache = new RedisAdCampaignCache(parameterTool.getRequired("jedis_server"));
+
             this.redisAdCampaignCache.prepare();
         }
 
         @Override
-        public void flatMap(Tuple2<String, String> input,
-                            Collector<Tuple3<String, String, String>> out) throws Exception {
+        public void flatMap(Tuple2<String, String> input, Collector<Tuple3<String, String, String>> collector) throws Exception {
+
             String ad_id = input.getField(0);
+
             String campaign_id = this.redisAdCampaignCache.execute(ad_id);
+
             if(campaign_id == null) {
                 return;
             }
@@ -144,7 +165,8 @@ public class AdvertisingTopologyNative {
                     campaign_id,
                     (String) input.getField(0),
                     (String) input.getField(1));
-            out.collect(tuple);
+
+            collector.collect(tuple);
         }
     }
 
@@ -154,11 +176,17 @@ public class AdvertisingTopologyNative {
 
         @Override
         public void open(Configuration parameters) {
-            ParameterTool parameterTool = (ParameterTool) getRuntimeContext().getExecutionConfig().getGlobalJobParameters();
-            parameterTool.getRequired("jedis_server");
-            LOG.info("Opening connection with Jedis to {}", parameterTool.getRequired("jedis_server"));
 
-            this.campaignProcessorCommon = new CampaignProcessorCommon(parameterTool.getRequired("jedis_server"));
+            ParameterTool parameterTool = (ParameterTool) getRuntimeContext()
+                    .getExecutionConfig()
+                    .getGlobalJobParameters();
+
+            String jedis_server = parameterTool.getRequired("jedis_server");
+
+            LOG.info("Opening connection with Jedis to {}", jedis_server);
+
+            this.campaignProcessorCommon = new CampaignProcessorCommon(jedis_server);
+
             this.campaignProcessorCommon.prepare();
         }
 
@@ -167,12 +195,16 @@ public class AdvertisingTopologyNative {
 
             String campaign_id = tuple.getField(0);
             String event_time =  tuple.getField(2);
-            this.campaignProcessorCommon.execute(campaign_id, event_time);
+
+
+            this.campaignProcessorCommon.execute(campaign_id, event_time, /** event_finish_time */ String.valueOf(System.nanoTime()));
         }
     }
 
     private static Map<String, String> getFlinkConfs(Map conf) {
+
         String kafkaBrokers = getKafkaBrokers(conf);
+
         String zookeeperServers = getZookeeperServers(conf);
 
         Map<String, String> flinkConfs = new HashMap<String, String>();
@@ -192,6 +224,7 @@ public class AdvertisingTopologyNative {
         return listOfStringToString((List<String>) conf.get("zookeeper.servers"), String.valueOf(conf.get("zookeeper.port")));
     }
 
+    @SuppressWarnings("unchecked")
     private static String getKafkaBrokers(Map conf) {
         if(!conf.containsKey("kafka.brokers")) {
             throw new IllegalArgumentException("No kafka brokers found!");
