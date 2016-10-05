@@ -30,8 +30,9 @@ object LoadGen {
 
 
   def main(args:Array[String]) = {
+    val throughput = args(0).toInt
     doNewSetup(redisHost)
-    run(throughput = 50000)
+    run(throughput = throughput)
   }
 
   def doNewSetup(redisHost: String) = {
@@ -77,7 +78,6 @@ object LoadGen {
         }
 
         producer.send(new ProducerRecord(kafkaTopic, makeKafkaEventsAt(t, ads, userIds, pageIds)))
-        println("xx")
       }
     } catch {
       case e:Exception => throw e
