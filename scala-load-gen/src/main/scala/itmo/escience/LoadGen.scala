@@ -1,12 +1,15 @@
-import java.util.{Properties, Random}
+package itmo.escience
 
-import org.apache.kafka.clients.producer.{KafkaProducer, Producer, ProducerRecord}
-import org.apache.kafka.common.serialization.{ByteArraySerializer, StringSerializer}
+import java.util.Random
+
+import org.apache.kafka.clients.producer.{KafkaProducer, ProducerRecord}
+import org.apache.kafka.common.serialization.StringSerializer
 import redis.clients.jedis.Jedis
 
 import scala.collection.JavaConversions._
-import scala.concurrent.Future
 import scala.concurrent.ExecutionContext.Implicits.global
+import scala.concurrent.Future
+
 
 object LoadGen {
 
