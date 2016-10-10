@@ -66,7 +66,7 @@ object LoadGen {
     val producer = new KafkaProducer[String, String](props, new StringSerializer, new StringSerializer)
 
     try {
-      for(t <- timesIter){
+      for((t, i) <- timesIter.zipWithIndex){
         val cur = System.currentTimeMillis()
         val tms = t / 1000000
 
@@ -81,6 +81,11 @@ object LoadGen {
         }
 
         producer.send(new ProducerRecord(kafkaTopic, makeKafkaEventsAt(t, ads, userIds, pageIds)))
+        if (i % 1000 == 0){
+          Future {
+            println(s"Emitted $i records")
+          }
+        }
       }
     } catch {
       case e:Exception => throw e
