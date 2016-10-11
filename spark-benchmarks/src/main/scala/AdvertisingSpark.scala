@@ -60,6 +60,9 @@ object KafkaRedisAdvertisingStream {
 
     // Create direct kafka stream with brokers and topics
     val topicsSet = Set(topic)
+
+    println(s"kafkaHosts $kafkaHosts")
+
     val brokers = joinHosts(kafkaHosts, kafkaPort)
     val kafkaParams = Map[String, String]("metadata.broker.list" -> brokers, "auto.offset.reset" -> "smallest")
     System.err.println(
@@ -112,13 +115,13 @@ object KafkaRedisAdvertisingStream {
   def joinHosts(hosts: Seq[String], port: String): String = {
     val joined = new StringBuilder();
     hosts.foreach({
-      if (!joined.isEmpty) {
+      if (joined.nonEmpty) {
         joined.append(",");
       }
 
       joined.append(_).append(":").append(port);
     })
-    return joined.toString();
+    return joined.toString().substring(1);
   }
 
   def parseJson(jsonString: String): Array[String] = {
@@ -186,24 +189,24 @@ object KafkaRedisAdvertisingStream {
     val campaign = campaign_window_pair._1
     val window_timestamp = campaign_window_pair._2.toString
     val window_seenCount = campaign_window_counts._2
-    pool.withJedisClient { client =>
-
-      val dressUp = Dress.up(client)
-      var windowUUID = dressUp.hmget(campaign, window_timestamp)(0)
-      if (windowUUID == null) {
-        windowUUID = UUID.randomUUID().toString
-        dressUp.hset(campaign, window_timestamp, windowUUID)
-        var windowListUUID: String = dressUp.hmget(campaign, "windows")(0)
-        if (windowListUUID == null) {
-          windowListUUID = UUID.randomUUID.toString
-          dressUp.hset(campaign, "windows", windowListUUID)
-        }
-        dressUp.lpush(windowListUUID, window_timestamp)
-      }
-      dressUp.hincrBy(windowUUID, "seen_count", window_seenCount)
-      dressUp.hset(windowUUID, "time_updated", currentTime.toString)
-      return window_seenCount.toString
-    }
-
+//    pool.withJedisClient { client =>
+//
+//      val dressUp = Dress.up(client)
+//      var windowUUID = dressUp.hmget(campaign, window_timestamp)(0)
+//      if (windowUUID == null) {
+//        windowUUID = UUID.randomUUID().toString
+//        dressUp.hset(campaign, window_timestamp, windowUUID)
+//        var windowListUUID: String = dressUp.hmget(campaign, "windows")(0)
+//        if (windowListUUID == null) {
+//          windowListUUID = "winlist_" + UUID.randomUUID.toString
+//          dressUp.hset(campaign, "windows", windowListUUID)
+//        }
+//        dressUp.lpush(windowListUUID, window_timestamp)
+//      }
+//      dressUp.hincrBy(windowUUID, "seen_count", window_seenCount)
+//      dressUp.hset(windowUUID, "time_updated", currentTime.toString)
+//      return window_seenCount.toString
+//    }
+    window_seenCount.toString
   }
 }
