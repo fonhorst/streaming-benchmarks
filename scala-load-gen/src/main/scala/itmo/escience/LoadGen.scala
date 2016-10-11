@@ -24,10 +24,10 @@ object LoadGen {
 
   var numCampaigns = 100
 
-  var redisHost = "192.168.92.72"
+  var redisHost = "127.0.0.1"
 
   //var kafkaHosts = "192.168.92.72:9092,192.168.92.73:9092"
-  var kafkaHosts = "192.168.92.72:9092"
+  var kafkaHosts = "127.0.0.1:9092"
 
   var kafkaTopic = "ad-events"
 
