@@ -2,6 +2,7 @@ package itmo.escience
 
 import java.util.Random
 
+import benchmark.common.Utils
 import org.apache.kafka.clients.producer.{KafkaProducer, ProducerRecord}
 import org.apache.kafka.common.serialization.StringSerializer
 import redis.clients.jedis.Jedis
@@ -24,18 +25,24 @@ object LoadGen {
 
   var numCampaigns = 100
 
-  var redisHost = "192.168.92.72"
-
   //var kafkaHosts = "192.168.92.72:9092,192.168.92.73:9092"
-  var kafkaHosts = "192.168.92.72:9092"
-
-  var kafkaTopic = "ad-events"
+  var kafkaHosts = "127.0.0.1:9092"
 
 
   def main(args:Array[String]) = {
+
+    if (args.length < 2) {
+      throw new Exception("Not enough arguments")
+    }
+
     val throughput = args(0).toInt
+    val settings = new Settings(confFilePath = args(1))
+
+    val redisHost = settings("redis.host")
+    val kafkaTopic = settings("kafka.topic")
+
     doNewSetup(redisHost)
-    run(throughput = throughput)
+    run(throughput = throughput, redisHost, kafkaTopic)
   }
 
   def doNewSetup(redisHost: String) = {
@@ -50,7 +57,7 @@ object LoadGen {
     }
   }
 
-  def run(throughput:Long) ={
+  def run(throughput:Long, redisHost:String, kafkaTopic:String) ={
     println(s"Running, emitting $throughput tuples per second.")
 
     val ads = genAds(redisHost)
@@ -138,5 +145,15 @@ object LoadGen {
     }""".stripMargin
 
     str
+  }
+
+}
+
+private class Settings(confFilePath:String) {
+  val commonConfig = Utils.findAndReadConfigFile(confFilePath, true).asInstanceOf[java.util.Map[String, Any]]
+
+  def apply(name: String) =  commonConfig.get("kafka.topic") match {
+    case s: String => s
+    case other => throw new ClassCastException(other + " not a String")
   }
 }

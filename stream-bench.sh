@@ -119,7 +119,7 @@ create_kafka_topic() {
     then
         $KAFKA_DIR/bin/kafka-topics.sh --create --zookeeper "$ZK_CONNECTIONS" --replication-factor 1 --partitions $PARTITIONS --topic $TOPIC
     else
-        echo "Kafka topic $TOPIC already exists"
+        echo "Kafka topic $TOPIC already exists."
     fi
 }
 
@@ -220,8 +220,8 @@ run() {
   elif [ "START_HERON" = "$OPERATION" ]; 
   then 
       echo "Starting heron $OPERATION"
-	  start_if_needed heron-tracker "Heron Tracker" 3 $HERON_DIR"/bin/heron-tracker"
-      start_if_needed heron-ui "Heron UI" 3 $HERON_DIR"/bin/heron-ui"
+	  start_if_needed heron-tracker "Heron Tracker" 3 $HERON_DIR"/herontools/bin/heron-tracker"
+      start_if_needed heron-ui "Heron UI" 3 $HERON_DIR"/herontools/bin/heron-ui"
       sleep 5 
   elif [ "STOP_HERON" = "$OPERATION" ]; 
     then 
@@ -253,15 +253,16 @@ run() {
     sleep 3
   elif [ "START_LOAD" = "$OPERATION" ];
   then
-    cd data
-    start_if_needed leiningen.core.main "Load Generation" 1 $LEIN run -r -t $LOAD --configPath ../$CONF_FILE
-    cd ..
+    cd scala-load-gen/target
+    start_if_needed java -jar scala-load-gen-0.1.0.jar $LOAD ../$CONF_FILE
+    cd ../..
   elif [ "STOP_LOAD" = "$OPERATION" ];
   then
-    stop_if_needed leiningen.core.main "Load Generation"
-    cd data
-    $LEIN run -g --configPath ../$CONF_FILE || true
-    cd ..
+    stop_if_needed scala-load-gen-0.1.0.jar "Load Generation"
+    cd scala-load-gen/target
+    echo 'WARNING! STATISTICS AGGREGATION CURRENTLY IS MOCKED AND NOT WORKING'
+    #$LEIN run -g --configPath ../$CONF_FILE || true
+    cd ../..
   elif [ "START_STORM_TOPOLOGY" = "$OPERATION" ];
   then
     "$STORM_DIR/bin/storm" jar ./storm-benchmarks/target/storm-benchmarks-0.1.0.jar storm.benchmark.AdvertisingTopology test-topo -conf $CONF_FILE
@@ -272,12 +273,11 @@ run() {
     sleep 10
    elif [ "START_HERON_TOPOLOGY" = "$OPERATION" ]; 
     then 
-	  echo local/vagrant/devel --config-path $HERON_DIR/conf/ ./heron-benchmarks/target/heron-benchmarks-0.1.0.jar storm.benchmark.AdvertisingTopology test-topo -conf $CONF_FILE 
-	  "$HERON_DIR/bin/heron" submit local/vagrant/devel --config-path $HERON_DIR/conf/ ./heron-benchmarks/target/heron-benchmarks-0.1.0.jar storm.benchmark.AdvertisingTopology test-topo -conf $CONF_FILE 
+	  "$HERON_DIR/heron/bin/heron" submit local/vagrant/devel --config-path $HERON_DIR/heron/conf/ ./heron-benchmarks/target/heron-benchmarks-0.1.0.jar storm.benchmark.AdvertisingTopology test-topo -conf $CONF_FILE 
       sleep 15 
   elif [ "STOP_HERON_TOPOLOGY" = "$OPERATION" ]; 
     then 
-      "$HERON_DIR/bin/heron" kill local/vagrant/devel test-topo || true 
+      "$HERON_DIR/heron/bin/heron" kill local/vagrant/devel test-topo || true 
       sleep 10 
   elif [ "START_SPARK_PROCESSING" = "$OPERATION" ];
   then
@@ -343,7 +343,7 @@ run() {
     run "STOP_FLINK_PROCESSING"
     run "STOP_FLINK"
     run "STOP_KAFKA"
-    run "STOP_REDIS"
+#    run "STOP_REDIS"
     run "STOP_ZK"
   elif [ "SPARK_TEST" = "$OPERATION" ];
   then
@@ -360,8 +360,7 @@ run() {
     run "STOP_KAFKA"
     run "STOP_REDIS"
     run "STOP_ZK"
-#    ~/anaconda3/bin/python latency_exporter.py spark $LOAD
-#    ~/anaconda3/bin/python throughput_exporter.py spark $LOAD
+
   elif [ "STOP_ALL" = "$OPERATION" ];
   then
     run "STOP_LOAD"
