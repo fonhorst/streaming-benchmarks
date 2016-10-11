@@ -44,6 +44,7 @@ Licensed under the terms of the Apache License 2.0. Please see LICENSE file in t
                 <artifactId>storm-kafka</artifactId>
                 <version>${storm.version}</version>
             </dependency>
+
             <dependency>
                 <groupId>com.twitter.heron</groupId>
                 <artifactId>heron-api</artifactId>
@@ -105,6 +106,11 @@ Licensed under the terms of the Apache License 2.0. Please see LICENSE file in t
                         <artifactId>log4j</artifactId>
                     </exclusion>
                 </exclusions>
+            </dependency>
+            <dependency>
+                <groupId>org.apache.kafka</groupId>
+                <artifactId>kafka-clients</artifactId>
+                <version>${kafka.version}</version>
             </dependency>
             <dependency>
                 <groupId>redis.clients</groupId>

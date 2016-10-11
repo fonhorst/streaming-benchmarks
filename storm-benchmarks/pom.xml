@@ -14,13 +14,25 @@
     <modelVersion>4.0.0</modelVersion>
     <artifactId>storm-benchmarks</artifactId>
 
-     <dependencies>
+    <dependencies>
+        <!--<dependency>-->
+            <!--<groupId>org.apache.storm</groupId>-->
+            <!--<artifactId>storm-core</artifactId>-->
+            <!--&lt;!&ndash; keep storm out of the jar-with-dependencies &ndash;&gt;-->
+            <!--<scope>provided</scope>-->
+        <!--</dependency>-->
         <dependency>
-            <groupId>org.apache.storm</groupId>
-            <artifactId>storm-core</artifactId>
-            <!-- keep storm out of the jar-with-dependencies -->
-            <scope>provided</scope>
+            <groupId>com.twitter.heron</groupId>
+            <artifactId>heron-api</artifactId>
+            <version>${heron.version}</version>
         </dependency>
+
+        <dependency>
+            <groupId>com.twitter.heron</groupId>
+            <artifactId>heron-storm</artifactId>
+            <version>${heron.version}</version>
+        </dependency>
+
         <dependency>
             <groupId>org.apache.storm</groupId>
             <artifactId>storm-kafka</artifactId>

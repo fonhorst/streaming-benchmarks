@@ -21,6 +21,8 @@ import backtype.storm.tuple.Values;
 import benchmark.common.Utils;
 import benchmark.common.advertising.CampaignProcessorCommon;
 import benchmark.common.advertising.RedisAdCampaignCache;
+
+import java.util.Arrays;
 import java.util.Map;
 import java.util.UUID;
 import java.util.List;
@@ -28,8 +30,8 @@ import org.apache.commons.cli.CommandLine;
 import org.apache.commons.cli.CommandLineParser;
 import org.apache.commons.cli.DefaultParser;
 import org.apache.commons.cli.Options;
-import org.apache.log4j.Logger;
 import org.json.JSONObject;
+import org.slf4j.Logger;
 import redis.clients.jedis.Jedis;
 import storm.kafka.KafkaSpout;
 import storm.kafka.SpoutConfig;
@@ -54,12 +56,12 @@ public class AdvertisingTopology {
 
             JSONObject obj = new JSONObject(tuple.getString(0));
             _collector.emit(tuple, new Values(obj.getString("user_id"),
-                                              obj.getString("page_id"),
-                                              obj.getString("ad_id"),
-                                              obj.getString("ad_type"),
-                                              obj.getString("event_type"),
-                                              obj.getString("event_time"),
-                                              obj.getString("ip_address")));
+                    obj.getString("page_id"),
+                    obj.getString("ad_id"),
+                    obj.getString("ad_type"),
+                    obj.getString("event_type"),
+                    obj.getString("event_time"),
+                    obj.getString("ip_address")));
             _collector.ack(tuple);
         }
 
@@ -102,7 +104,7 @@ public class AdvertisingTopology {
         @Override
         public void execute(Tuple tuple) {
             _collector.emit(tuple, new Values(tuple.getStringByField("ad_id"),
-                                              tuple.getStringByField("event_time")));
+                    tuple.getStringByField("event_time")));
             _collector.ack(tuple);
         }
 
@@ -136,8 +138,8 @@ public class AdvertisingTopology {
                 return;
             }
             _collector.emit(tuple, new Values(campaign_id,
-                                              tuple.getStringByField("ad_id"),
-                                              tuple.getStringByField("event_time")));
+                    tuple.getStringByField("ad_id"),
+                    tuple.getStringByField("event_time")));
             _collector.ack(tuple);
         }
 
@@ -148,8 +150,6 @@ public class AdvertisingTopology {
     }
 
     public static class CampaignProcessor extends BaseRichBolt {
-
-        private static final Logger LOG = Logger.getLogger(CampaignProcessor.class);
 
         private OutputCollector _collector;
         transient private CampaignProcessorCommon campaignProcessorCommon;
@@ -171,7 +171,7 @@ public class AdvertisingTopology {
             String campaign_id = tuple.getStringByField("campaign_id");
             String event_time = tuple.getStringByField("event_time");
 
-           this.campaignProcessorCommon.execute(campaign_id, event_time);
+            this.campaignProcessorCommon.execute(campaign_id, event_time);
             _collector.ack(tuple);
         }
 
@@ -204,10 +204,12 @@ public class AdvertisingTopology {
         CommandLineParser parser = new DefaultParser();
         CommandLine cmd = parser.parse(opts, args);
         String configPath = cmd.getOptionValue("conf");
+
+
         Map commonConfig = Utils.findAndReadConfigFile(configPath, true);
 
         String zkServerHosts = joinHosts((List<String>)commonConfig.get("zookeeper.servers"),
-                                         Integer.toString((Integer)commonConfig.get("zookeeper.port")));
+                Integer.toString((Integer)commonConfig.get("zookeeper.port")));
         String redisServerHost = (String)commonConfig.get("redis.host");
         String kafkaTopic = (String)commonConfig.get("kafka.topic");
         int kafkaPartitions = ((Number)commonConfig.get("kafka.partitions")).intValue();
@@ -216,9 +218,8 @@ public class AdvertisingTopology {
         int cores = ((Number)commonConfig.get("process.cores")).intValue();
         int parallel = Math.max(1, cores/7);
 
+
         ZkHosts hosts = new ZkHosts(zkServerHosts);
-
-
 
         SpoutConfig spoutConfig = new SpoutConfig(hosts, kafkaTopic, "/" + kafkaTopic, UUID.randomUUID().toString());
         spoutConfig.scheme = new SchemeAsMultiScheme(new StringScheme());
@@ -230,22 +231,32 @@ public class AdvertisingTopology {
         builder.setBolt("event_projection", new EventProjectionBolt(), parallel).shuffleGrouping("event_filter");
         builder.setBolt("redis_join", new RedisJoinBolt(redisServerHost), parallel).shuffleGrouping("event_projection");
         builder.setBolt("campaign_processor", new CampaignProcessor(redisServerHost), parallel*2)
-            .fieldsGrouping("redis_join", new Fields("campaign_id"));
+                .fieldsGrouping("redis_join", new Fields("campaign_id"));
 
         Config conf = new Config();
 
-        if (args != null && args.length > 0) {
-            conf.setNumWorkers(workers);
-            conf.setNumAckers(ackers);
-            StormSubmitter.submitTopology(args[0], conf, builder.createTopology());
-        }
-        else {
+        conf.put("storm.zookeeper.servers", (List<String>)commonConfig.get("zookeeper.servers"));
+        conf.put("storm.zookeeper.port", (Integer)commonConfig.get("zookeeper.port"));
+        conf.put("storm.zookeeper.session.timeout",20000);
+        conf.put("storm.zookeeper.connection.timeout", 3000);
+        conf.put("storm.zookeeper.retry.times", 5);
+        conf.put("storm.zookeeper.retry.interval", 1000);
+        conf.put("storm.zookeeper.retry.intervalceiling.millis", 30000);
 
-            LocalCluster cluster = new LocalCluster();
-            cluster.submitTopology("test", conf, builder.createTopology());
-            backtype.storm.utils.Utils.sleep(10000);
-            cluster.killTopology("test");
-            cluster.shutdown();
+        if (args != null && args.length > 0) {
+
+            if(args[0].toLowerCase().contains("local")) {
+                LocalCluster cluster = new LocalCluster();
+                cluster.submitTopology("test", conf, builder.createTopology());
+                //backtype.storm.utils.Utils.sleep(10000);
+                //cluster.killTopology("test");
+                //cluster.shutdown();
+            }else {
+                conf.setNumWorkers(workers);
+                conf.setNumAckers(ackers);
+                StormSubmitter.submitTopology(args[0], conf, builder.createTopology());
+            }
         }
+
     }
 }
