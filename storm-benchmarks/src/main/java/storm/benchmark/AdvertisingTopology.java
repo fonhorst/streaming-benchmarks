@@ -238,7 +238,7 @@ public class AdvertisingTopology {
         conf.put("storm.zookeeper.servers", (List<String>)commonConfig.get("zookeeper.servers"));
         conf.put("storm.zookeeper.port", (Integer)commonConfig.get("zookeeper.port"));
         conf.put("storm.zookeeper.session.timeout",20000);
-        conf.put("storm.zookeeper.connection.timeout", 3000);
+        conf.put("storm.zookeeper.connection.timeout", 15000);
         conf.put("storm.zookeeper.retry.times", 5);
         conf.put("storm.zookeeper.retry.interval", 1000);
         conf.put("storm.zookeeper.retry.intervalceiling.millis", 30000);

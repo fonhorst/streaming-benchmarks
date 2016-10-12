@@ -273,6 +273,7 @@ run() {
     sleep 10
    elif [ "START_HERON_TOPOLOGY" = "$OPERATION" ]; 
     then 
+	   export JAVA_HOME=/usr/lib/jvm/java-8-oracle/
 	  "$HERON_DIR/heron/bin/heron" submit local/vagrant/devel --config-path $HERON_DIR/heron/conf/ ./heron-benchmarks/target/heron-benchmarks-0.1.0.jar storm.benchmark.AdvertisingTopology test-topo -conf $CONF_FILE 
       sleep 15 
   elif [ "STOP_HERON_TOPOLOGY" = "$OPERATION" ]; 
@@ -399,6 +400,7 @@ run() {
     echo "STOP_SPARK: kill spark processes"
     echo 
     echo "STORM_TEST: run storm test (assumes SETUP is done)" 
+	echo "HERON_TEST: run storm test (assumes SETUP is done)" 
     echo "FLINK_TEST: run flink test (assumes SETUP is done)" 
     echo "SPARK_TEST: run spark test (assumes SETUP is done)" 
     echo "STOP_ALL: stop everything" 
