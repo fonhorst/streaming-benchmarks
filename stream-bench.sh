@@ -11,14 +11,14 @@ MVN=${MVN:-mvn}
 GIT=${GIT:-git}
 MAKE=${MAKE:-make}
 
-KAFKA_VERSION=${KAFKA_VERSION:-"0.8.2.1"}
+KAFKA_VERSION=${KAFKA_VERSION:-"0.10.0.1"}
 REDIS_VERSION=${REDIS_VERSION:-"3.0.5"}
-SCALA_BIN_VERSION=${SCALA_BIN_VERSION:-"2.10"}
+SCALA_BIN_VERSION=${SCALA_BIN_VERSION:-"2.11"}
 SCALA_SUB_VERSION=${SCALA_SUB_VERSION:-"4"}
 STORM_VERSION=${STORM_VERSION:-"0.10.0"}
 HERON_VERSION=${HERON_VERSION:-"0.14.3"}
 FLINK_VERSION=${FLINK_VERSION:-"0.10.2"}
-SPARK_VERSION=${SPARK_VERSION:-"1.6.2"}
+SPARK_VERSION=${SPARK_VERSION:-"2.0.1"}
 
 STORM_DIR="apache-storm-$STORM_VERSION"
 HERON_DIR="heron-$HERON_VERSION" 
@@ -166,20 +166,20 @@ run() {
 
     #Fetch HERON 
 	#apt-get install zip libunwind-setjmp0-dev zlib1g-dev unzip -y --force-yes
-	HERON_FILES="client tools"
-	for FILE in $HERON_FILES
-	do
-		HERON_FILE="heron-$FILE-install-$HERON_VERSION-ubuntu.sh" 
-		fetch_file "$HERON_FILE" "$HERON_MIRROR/$HERON_FILE"  
-	done
-	
-	for FILE in $HERON_FILES
-	do
-		HERON_FILE="heron-$FILE-install-$HERON_VERSION-ubuntu.sh" 
-		./download-cache/$HERON_FILE --prefix=$HERON_DIR 
-	done
-	echo 'JAVA_HOME="/usr/lib/jvm/java-8-oracle/"' >> /etc/environment
-	source /etc/profile
+	#HERON_FILES="client tools"
+	#for FILE in $HERON_FILES
+	#do
+	#	HERON_FILE="heron-$FILE-install-$HERON_VERSION-ubuntu.sh" 
+	#	fetch_file "$HERON_FILE" "$HERON_MIRROR/$HERON_FILE"  
+	#done
+	#
+	#for FILE in $HERON_FILES
+	#do
+	#	HERON_FILE="heron-$FILE-install-$HERON_VERSION-ubuntu.sh" 
+	#	./download-cache/$HERON_FILE --prefix=$HERON_DIR 
+	#done
+	#echo 'JAVA_HOME="/usr/lib/jvm/java-8-oracle/"' >> /etc/environment
+	#source /etc/profile
 	
     #Fetch Flink
     FLINK_FILE="$FLINK_DIR-bin-hadoop27.tgz"
@@ -264,7 +264,6 @@ run() {
     cd data
     $LEIN run -g --configPath ../$CONF_FILE || true
     cd ..
-    ~/anaconda3/bin/python latency_exporter.py spark $LOAD
   elif [ "START_STORM_TOPOLOGY" = "$OPERATION" ];
   then
     "$STORM_DIR/bin/storm" jar ./storm-benchmarks/target/storm-benchmarks-0.1.0.jar storm.benchmark.AdvertisingTopology test-topo -conf $CONF_FILE
