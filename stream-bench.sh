@@ -178,7 +178,9 @@ run() {
 		HERON_FILE="heron-$FILE-install-$HERON_VERSION-ubuntu.sh" 
 		./download-cache/$HERON_FILE --prefix=$HERON_DIR 
 	done
-
+	echo 'JAVA_HOME="/usr/lib/jvm/java-8-oracle/"' >> /etc/environment
+	source /etc/profile
+	
     #Fetch Flink
     FLINK_FILE="$FLINK_DIR-bin-hadoop27.tgz"
     fetch_untar_file "$FLINK_FILE" "$APACHE_MIRROR/flink/flink-$FLINK_VERSION/$FLINK_FILE"
@@ -273,7 +275,6 @@ run() {
     sleep 10
    elif [ "START_HERON_TOPOLOGY" = "$OPERATION" ]; 
     then 
-	   export JAVA_HOME=/usr/lib/jvm/java-8-oracle/
 	  "$HERON_DIR/heron/bin/heron" submit local/vagrant/devel --config-path $HERON_DIR/heron/conf/ ./heron-benchmarks/target/heron-benchmarks-0.1.0.jar storm.benchmark.AdvertisingTopology test-topo -conf $CONF_FILE 
       sleep 15 
   elif [ "STOP_HERON_TOPOLOGY" = "$OPERATION" ]; 
