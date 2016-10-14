@@ -30,7 +30,7 @@ SPARK_DIR="spark-$SPARK_VERSION-bin-hadoop2.6"
 #Get one of the closet apache mirrors
 APACHE_MIRROR=$(curl 'https://www.apache.org/dyn/closer.cgi' |   grep -o '<strong>[^<]*</strong>' |   sed 's/<[^>]*>//g' |   head -1)
 HERON_MIRROR="https://github.com/twitter/heron/releases/download/$HERON_VERSION"
-GENERATOR_MIRROR="http://192.168.1.36/aspen-sensors/utils"
+GENERATOR_MIRROR="http://192.168.1.36/aspen-sensors/kafka-utils"
 
 ZK_HOST="localhost"
 ZK_PORT="2181"
@@ -39,7 +39,9 @@ TOPIC=${TOPIC:-"ad-events"}
 PARTITIONS=${PARTITIONS:-2}
 LOAD=${LOAD:-1}
 CONF_FILE=./conf/localConf.yaml
-TEST_TIME=${TEST_TIME:-240}
+TEST_TIME=${TEST_TIME:-30}
+
+
 
 pid_match() {
    local VAL=`ps -aef | grep "$1" | grep -v grep | awk '{print $2}'`
@@ -126,10 +128,12 @@ create_kafka_topic() {
 
 run() {
   OPERATION=$1
+  
   if [ "SETUP" = "$OPERATION" ];
   then
     
-    $GIT clean -fd
+	
+	$GIT clean -fd
 
     echo 'kafka.brokers:' > $CONF_FILE
     echo '    - "localhost"' >> $CONF_FILE
@@ -163,28 +167,29 @@ run() {
     fetch_untar_file "$KAFKA_FILE" "$APACHE_MIRROR/kafka/$KAFKA_VERSION/$KAFKA_FILE"
 
 	#Fetch Sensors generator
-	fetch_file "aspen-utils-0.1.jar" "$GENERATOR_MIRROR/target/utils-0.1.jar"
+	fetch_file "kafkaUtils-0.1.jar" "$GENERATOR_MIRROR/target/kafkaUtils-0.1.jar"
+		
+	#Fetch HERON 
+	#apt-get install zip libunwind-setjmp0-dev zlib1g-dev unzip -y --force-yes
+	HERON_FILES="client tools"
+	for FILE in $HERON_FILES
+	do
+		HERON_FILE="heron-$FILE-install-$HERON_VERSION-ubuntu.sh" 
+		fetch_file "$HERON_FILE" "$HERON_MIRROR/$HERON_FILE"  
+	done
+	
+	for FILE in $HERON_FILES
+	do
+		HERON_FILE="heron-$FILE-install-$HERON_VERSION-ubuntu.sh" 
+		./download-cache/$HERON_FILE --prefix=$HERON_DIR 
+	done
+	#echo 'JAVA_HOME="/usr/lib/jvm/java-8-oracle/"' >> /etc/environment
+	exit
 	
     #Fetch Storm
     STORM_FILE="$STORM_DIR.tar.gz"
     fetch_untar_file "$STORM_FILE" "$APACHE_MIRROR/storm/$STORM_DIR/$STORM_FILE"
 
-    #Fetch HERON 
-	#apt-get install zip libunwind-setjmp0-dev zlib1g-dev unzip -y --force-yes
-	#HERON_FILES="client tools"
-	#for FILE in $HERON_FILES
-	#do
-	#	HERON_FILE="heron-$FILE-install-$HERON_VERSION-ubuntu.sh" 
-	#	fetch_file "$HERON_FILE" "$HERON_MIRROR/$HERON_FILE"  
-	#done
-	#
-	#for FILE in $HERON_FILES
-	#do
-	#	HERON_FILE="heron-$FILE-install-$HERON_VERSION-ubuntu.sh" 
-	#	./download-cache/$HERON_FILE --prefix=$HERON_DIR 
-	#done
-	#echo 'JAVA_HOME="/usr/lib/jvm/java-8-oracle/"' >> /etc/environment
-	#source /etc/profile
 	
     #Fetch Flink
     FLINK_FILE="$FLINK_DIR-bin-hadoop27.tgz"
@@ -263,16 +268,18 @@ run() {
     #cd data
     #start_if_needed leiningen.core.main "Load Generation" 1 $LEIN run -r -t $LOAD --configPath ../$CONF_FILE
 	#cd ..
-	LOADCOMMAND="java -cp ./download-cache/aspen-utils-0.1.jar itmo.escience.aspen.utils.KafkaEmitter localhost:9092 aspen-1-sensors 1 100 100"
+	TOPIC=$2
+	SENSORS=$3
+	LOADCOMMAND="java -cp ./download-cache/kafkaUtils-0.1.jar itmo.escience.aspen.kafka.utils.KafkaEmitter localhost:9092 $TOPIC $SENSORS 100 100"
 	echo $LOADCOMMAND
-	start_if_needed aspen-utils "Load Generation" 3 $LOADCOMMAND
+	start_if_needed itmo.escience.aspen.kafka.utils.KafkaEmitter LoadGeneration 3 $LOADCOMMAND
   elif [ "STOP_LOAD" = "$OPERATION" ];
   then
     #stop_if_needed leiningen.core.main "Load Generation"
     #cd data
     #$LEIN run -g --configPath ../$CONF_FILE || true
     #cd ..
-	stop_if_needed aspen-utils "aspen-utils" 
+	stop_if_needed itmo.escience.aspen.kafka.utils.KafkaEmitter LoadGeneration
   elif [ "START_STORM_TOPOLOGY" = "$OPERATION" ];
   then
     "$STORM_DIR/bin/storm" jar ./storm-benchmarks/target/storm-benchmarks-0.1.0.jar storm.benchmark.AdvertisingTopology test-topo -conf $CONF_FILE
@@ -283,11 +290,18 @@ run() {
     sleep 10
    elif [ "START_HERON_TOPOLOGY" = "$OPERATION" ]; 
     then 
-	  "$HERON_DIR/heron/bin/heron" submit local/vagrant/devel --config-path $HERON_DIR/heron/conf/ ./heron-benchmarks/target/heron-benchmarks-0.1.0.jar storm.benchmark.AdvertisingTopology test-topo -conf $CONF_FILE 
+	  TOPONAME=$2
+	  TOPIC=$3
+	  WINDOW_LENGTH=$4
+	  #"$HERON_DIR/heron/bin/heron" submit local/vagrant/devel --config-path $HERON_DIR/heron/conf/ ./heron-benchmarks/target/heron-benchmarks-0.1.0.jar storm.benchmark.AdvertisingTopology test-topo -conf $CONF_FILE 
+	  COMMAND="$HERON_DIR/heron/bin/heron submit local/vagrant/devel --config-path $HERON_DIR/heron/conf/ ./heron-benchmarks/target/heron-1.0.jar itmo.escience.aspen.sensors.heron.SensorsTopology sensorsTopology -conf $CONF_FILE -topic $TOPIC -windowLength $WINDOW_LENGTH"
+	  echo $COMMAND
+	  $COMMAND
       sleep 15 
   elif [ "STOP_HERON_TOPOLOGY" = "$OPERATION" ]; 
     then 
-      "$HERON_DIR/heron/bin/heron" kill local/vagrant/devel test-topo || true 
+	  TOPONAME=$2
+      "$HERON_DIR/heron/bin/heron" kill local/vagrant/devel $TOPONAME || true 
       sleep 10 
   elif [ "START_SPARK_PROCESSING" = "$OPERATION" ];
   then
@@ -310,6 +324,13 @@ run() {
       "$FLINK_DIR/bin/flink" cancel $FLINK_ID
       sleep 3
     fi
+  elif [ "KAFKA_EXPORT" = "$OPERATION" ];
+  then
+    TOPIC=$2
+	FRAMEWORK=$3
+	WINDOW_LENGTH=$4
+	COMMAND="java -cp ./download-cache/kafkaUtils-0.1.jar itmo.escience.aspen.kafka.utils.KafkaExporter $TOPIC localhost:9092 $FRAMEWORK $WINDOW_LENGTH"
+	$COMMAND
   elif [ "STORM_TEST" = "$OPERATION" ];
   then
     run "START_ZK"
@@ -327,16 +348,22 @@ run() {
     run "STOP_ZK"
   elif [ "HERON_TEST" = "$OPERATION" ];
     then
-      run "START_ZK"
-      run "START_REDIS"
-      run "START_KAFKA"
+	  SENSORS=$2
+	  WINDOW_LENGTH=$3
+	  TOPONAME="sensorsTopology-"$WINDOW_LENGTH
+	  echo "HeronTest with SENSORS=$SENSORS WINDOW_LENGTH=$WINDOW_LENGTH"
+	  TOPIC="aspen-$SENSORS-heron"
+	  run "START_ZK"
+      #run "START_REDIS"
+      #run "START_KAFKA"
       run "START_HERON"
-      run "START_HERON_TOPOLOGY"
-      run "START_LOAD"
+      run "START_HERON_TOPOLOGY" $TOPONAME $TOPIC $WINDOW_LENGTH
+      run "START_LOAD" $TOPIC
       sleep $TEST_TIME
       run "STOP_LOAD"
-      run "STOP_HERON_TOPOLOGY"
+      run "STOP_HERON_TOPOLOGY" $TOPONAME
       run "STOP_HERON"
+	  run "KAFKA_EXPORT" $TOPIC"-"$WINDOW_LENGTH"-heron Heron $WINDOW_LENGTH"
       run "STOP_KAFKA"
       #run "STOP_REDIS"
       run "STOP_ZK"
@@ -383,6 +410,23 @@ run() {
     run "STOP_KAFKA"
     run "STOP_REDIS"
     run "STOP_ZK"
+  elif [ "TEST_ALL" = "$OPERATION" ];
+  then
+	FRAMEWORKS="HERON"
+	SENSORS="1 3 5" # 10 30
+	W_LENGTHS="1000 3000 5000" # 10 30
+	for FRAMEWORK in $FRAMEWORKS
+	do
+		for SENSOR in $SENSORS
+		do
+			for W_LENGTH in $W_LENGTHS
+			do
+				COMMAND="./stream-bench.sh "$FRAMEWORK"_TEST $SENSOR $W_LENGTH"
+				echo $COMMAND
+				$COMMAND
+			done
+		done
+	done
   else
     if [ "HELP" != "$OPERATION" ];
     then
@@ -423,10 +467,7 @@ run() {
 if [ $# -lt 1 ]; 
 then 
   run "HELP" 
-else 
-  while [ $# -gt 0 ]; 
-  do 
-    run "$1" 
-    shift 
-  done 
-fi
+else
+	run $@
+fi 
+
